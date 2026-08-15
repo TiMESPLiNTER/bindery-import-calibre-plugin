@@ -110,3 +110,7 @@ interpreter and the plugin installed once:
 calibre-customize -a bindery_import.zip
 calibre-debug tests/test_calibre_integration.py
 ```
+
+## License
+
+[MIT](LICENSE)
