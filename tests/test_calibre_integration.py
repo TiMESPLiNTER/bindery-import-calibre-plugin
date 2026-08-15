@@ -97,11 +97,11 @@ class BuildMetadataTest(unittest.TestCase):
         self.assertEqual(mi.title, 'Fetish - Fashion, Sex & Power')
         self.assertEqual(mi.authors, ['Valerie Steele'])
         self.assertEqual(mi.comments, 'A history of fetish fashion.')
-        self.assertEqual(mi.tags, ['Fashion', 'History'])  # deduped, order kept
+        self.assertEqual(mi.tags, ['Fashion', 'History', 'Bindery'])  # deduped, order kept
         self.assertEqual(mi.pubdate.year, 1996)
         self.assertEqual(mi.languages, ['eng'])
         self.assertEqual(mi.rating, 9)  # 4.5 * 2, rounded
-        self.assertEqual(mi.identifiers, {'olid': 'OL891144W'})
+        self.assertEqual(mi.identifiers, {'bindery': '1', 'olid': 'OL891144W'})
         self.assertEqual(mi.cover_data, ('jpg', FAKE_COVER_BYTES))
 
     def test_skips_rating_when_no_ratings_count(self):
@@ -122,12 +122,17 @@ class BuildMetadataTest(unittest.TestCase):
     def test_asin_identifier_included_when_present(self):
         book = dict(BOOK_FIXTURE, asin='B00TEST123')
         mi = self.dialog._build_metadata(book, FakeClient())
-        self.assertEqual(mi.identifiers, {'olid': 'OL891144W', 'asin': 'B00TEST123'})
+        self.assertEqual(mi.identifiers, {'bindery': '1', 'olid': 'OL891144W', 'asin': 'B00TEST123'})
 
     def test_missing_release_date_leaves_pubdate_unset(self):
         book = dict(BOOK_FIXTURE, releaseDate=None)
         mi = self.dialog._build_metadata(book, FakeClient())
         self.assertFalse(mi.pubdate and mi.pubdate.year == 1996)
+
+    def test_tags_always_include_bindery_marker_even_without_genres(self):
+        book = dict(BOOK_FIXTURE, genres=[])
+        mi = self.dialog._build_metadata(book, FakeClient())
+        self.assertEqual(mi.tags, ['Bindery'])
 
 
 class LibraryImportTest(unittest.TestCase):
@@ -164,6 +169,45 @@ class LibraryImportTest(unittest.TestCase):
         self.assertEqual(self.db.new_api.field_for('title', book_id), BOOK_FIXTURE['title'])
 
 
+class FakeGui:
+    """Stands in for calibre's main GUI object; SearchDialog only ever
+    touches gui.current_db."""
+
+    def __init__(self, db):
+        self.current_db = db
+
+
+class AlreadyInLibraryTest(unittest.TestCase):
+    """Exercises _bindery_ids_already_in_library(), which drives the
+    grey-out/unselectable treatment for search results already imported."""
+
+    def setUp(self):
+        self.library_path = tempfile.mkdtemp(prefix='bindery_import_test_')
+        self.db = LibraryDatabase(self.library_path)
+        self.dialog = SearchDialog.__new__(SearchDialog)
+        self.dialog.gui = FakeGui(self.db)
+
+    def tearDown(self):
+        self.db.close()
+        shutil.rmtree(self.library_path, ignore_errors=True)
+
+    def test_empty_library_has_no_bindery_ids(self):
+        self.assertEqual(self.dialog._bindery_ids_already_in_library(), set())
+
+    def test_finds_book_with_bindery_identifier(self):
+        mi = self.dialog._build_metadata(BOOK_FIXTURE, FakeClient())
+        self.db.new_api.create_book_entry(mi, add_duplicates=True)
+
+        self.assertEqual(self.dialog._bindery_ids_already_in_library(), {'1'})
+
+    def test_ignores_books_without_bindery_identifier(self):
+        from calibre.ebooks.metadata.book.base import Metadata
+
+        self.db.new_api.create_book_entry(Metadata('Some other book', ['Someone']), add_duplicates=True)
+
+        self.assertEqual(self.dialog._bindery_ids_already_in_library(), set())
+
+
 def _run():
     # calibre-debug does not execute this file as the '__main__' module, so
     # unittest.main()'s default discovery (which looks at sys.modules['__main__'])
@@ -172,6 +216,7 @@ def _run():
     suite = unittest.TestSuite()
     suite.addTests(loader.loadTestsFromTestCase(BuildMetadataTest))
     suite.addTests(loader.loadTestsFromTestCase(LibraryImportTest))
+    suite.addTests(loader.loadTestsFromTestCase(AlreadyInLibraryTest))
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     sys.exit(0 if result.wasSuccessful() else 1)
 

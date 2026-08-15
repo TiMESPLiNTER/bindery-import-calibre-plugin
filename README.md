@@ -13,16 +13,22 @@ language, rating and identifiers included.
 - Cover thumbnails in the results list, fetched in the background
 - `wanted` books (no file available yet) are shown in yellow and are not
   selectable; `imported` books are shown in green
+- Books you've already imported are detected (via the `bindery` identifier,
+  see below) and shown greyed out / not selectable, so you can't accidentally
+  import duplicates
 - Imports selected books into your calibre library with:
   - the book file (whatever format Bindery has — epub, mobi, azw3, ...)
   - cover image
   - title, author(s)
   - description → comments
-  - genres → tags
+  - genres → tags, plus a `Bindery` tag so imported books are easy to spot in
+    calibre's Tags column/tag browser
   - release date → pubdate
   - language
   - rating (when Bindery has one)
-  - identifiers: OpenLibrary work id (`olid`) and ASIN, when available
+  - identifiers: the Bindery book id (`bindery`, used to detect
+    already-imported books), OpenLibrary work id (`olid`) and ASIN when
+    available
 - Authenticates with Bindery via API key (`X-Api-Key` header) — no
   session/cookie handling needed
 

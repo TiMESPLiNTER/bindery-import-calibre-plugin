@@ -36,6 +36,12 @@ STATUS_COLORS = {
     'imported': (QColor('#d9f2df'), QColor('#1e6b34')),  # light green bg, dark green text
     'wanted': (QColor('#fff6cf'), QColor('#8a6d00')),  # light yellow bg, dark yellow text
 }
+IN_LIBRARY_COLORS = (QColor('#e6e6e6'), QColor('#5a5a5a'))  # grey bg, grey text
+
+# Identifier type used to tag imported books with their Bindery book id, so
+# we can tell which local books came from Bindery and cross-check search
+# results against what's already in the library.
+BINDERY_IDENTIFIER_KEY = 'bindery'
 
 
 class CoverFetchThread(QThread):
@@ -131,6 +137,18 @@ class SearchDialog(QDialog):
             return None
         return BinderyClient(url, api_key)
 
+    def _bindery_ids_already_in_library(self):
+        """Book ids (as strings) of every book already in the local calibre
+        library that carries our 'bindery' identifier."""
+        db = self.gui.current_db
+        existing = set()
+        for book_id in db.new_api.all_book_ids():
+            identifiers = db.new_api.field_for('identifiers', book_id) or {}
+            bindery_id = identifiers.get(BINDERY_IDENTIFIER_KEY)
+            if bindery_id:
+                existing.add(bindery_id)
+        return existing
+
     def do_search(self):
         client = self._get_client()
         if client is None:
@@ -146,6 +164,8 @@ class SearchDialog(QDialog):
             error_dialog(self, 'Bindery Import', str(e), show=True)
             return
 
+        already_in_library = self._bindery_ids_already_in_library()
+
         self.results = data.get('items', [])
         self.table.setRowCount(len(self.results))
         cover_jobs = []
@@ -153,19 +173,21 @@ class SearchDialog(QDialog):
             title = book.get('title', '')
             author = (book.get('author') or {}).get('authorName', '')
             status_val = book.get('status', '')
+            in_library = str(book.get('id')) in already_in_library
             fmt = self._format_for(book)
             self.table.setItem(row, 0, QTableWidgetItem())
             self.table.setItem(row, 1, QTableWidgetItem(title))
             self.table.setItem(row, 2, QTableWidgetItem(author))
-            status_item = QTableWidgetItem(status_val)
-            colors = STATUS_COLORS.get(status_val)
+            status_text = f'{status_val} (in library)' if in_library else status_val
+            status_item = QTableWidgetItem(status_text)
+            colors = IN_LIBRARY_COLORS if in_library else STATUS_COLORS.get(status_val)
             if colors:
                 bg, fg = colors
                 status_item.setBackground(bg)
                 status_item.setForeground(fg)
             self.table.setItem(row, 3, status_item)
             self.table.setItem(row, 4, QTableWidgetItem(fmt))
-            if status_val == 'wanted':
+            if status_val == 'wanted' or in_library:
                 for col in range(self.table.columnCount()):
                     item = self.table.item(row, col)
                     # Stripping only ItemIsSelectable still lets the row become
@@ -221,8 +243,10 @@ class SearchDialog(QDialog):
         if book.get('description'):
             mi.comments = book['description']
 
-        if book.get('genres'):
-            mi.tags = list(dict.fromkeys(book['genres']))
+        genres = list(dict.fromkeys(book.get('genres') or []))
+        if 'Bindery' not in genres:
+            genres.append('Bindery')  # marks books imported via this plugin
+        mi.tags = genres
 
         if book.get('releaseDate'):
             try:
@@ -237,13 +261,12 @@ class SearchDialog(QDialog):
         if book.get('ratingsCount'):
             mi.rating = max(0, min(10, round((book.get('averageRating') or 0) * 2)))
 
-        identifiers = {}
+        identifiers = {BINDERY_IDENTIFIER_KEY: str(book['id'])}
         if book.get('foreignBookId'):
             identifiers['olid'] = book['foreignBookId']
         if book.get('asin'):
             identifiers['asin'] = book['asin']
-        if identifiers:
-            mi.set_identifiers(identifiers)
+        mi.set_identifiers(identifiers)
 
         image_url = book.get('imageUrl')
         if image_url:
