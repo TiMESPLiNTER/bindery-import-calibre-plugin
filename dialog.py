@@ -243,10 +243,8 @@ class SearchDialog(QDialog):
         if book.get('description'):
             mi.comments = book['description']
 
-        genres = list(dict.fromkeys(book.get('genres') or []))
-        if 'Bindery' not in genres:
-            genres.append('Bindery')  # marks books imported via this plugin
-        mi.tags = genres
+        if book.get('genres'):
+            mi.tags = list(dict.fromkeys(book['genres']))
 
         if book.get('releaseDate'):
             try:

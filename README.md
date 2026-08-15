@@ -21,8 +21,7 @@ language, rating and identifiers included.
   - cover image
   - title, author(s)
   - description → comments
-  - genres → tags, plus a `Bindery` tag so imported books are easy to spot in
-    calibre's Tags column/tag browser
+  - genres → tags
   - release date → pubdate
   - language
   - rating (when Bindery has one)

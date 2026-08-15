@@ -97,7 +97,7 @@ class BuildMetadataTest(unittest.TestCase):
         self.assertEqual(mi.title, 'Fetish - Fashion, Sex & Power')
         self.assertEqual(mi.authors, ['Valerie Steele'])
         self.assertEqual(mi.comments, 'A history of fetish fashion.')
-        self.assertEqual(mi.tags, ['Fashion', 'History', 'Bindery'])  # deduped, order kept
+        self.assertEqual(mi.tags, ['Fashion', 'History'])  # deduped, order kept
         self.assertEqual(mi.pubdate.year, 1996)
         self.assertEqual(mi.languages, ['eng'])
         self.assertEqual(mi.rating, 9)  # 4.5 * 2, rounded
@@ -129,10 +129,10 @@ class BuildMetadataTest(unittest.TestCase):
         mi = self.dialog._build_metadata(book, FakeClient())
         self.assertFalse(mi.pubdate and mi.pubdate.year == 1996)
 
-    def test_tags_always_include_bindery_marker_even_without_genres(self):
+    def test_no_genres_leaves_tags_unset(self):
         book = dict(BOOK_FIXTURE, genres=[])
         mi = self.dialog._build_metadata(book, FakeClient())
-        self.assertEqual(mi.tags, ['Bindery'])
+        self.assertFalse(mi.tags)
 
 
 class LibraryImportTest(unittest.TestCase):
