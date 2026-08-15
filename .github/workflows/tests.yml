@@ -1,0 +1,42 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit-tests:
+    name: Client unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Run BinderyClient unit tests
+        run: python3 -m unittest discover -s tests -p 'test_client.py' -v
+
+  calibre-integration-tests:
+    name: Calibre integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install calibre
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libxcb-cursor0
+          wget -nv -O- https://download.calibre-ebook.com/linux-installer.sh | sudo sh /dev/stdin
+
+      - name: Build plugin zip
+        run: |
+          zip -r bindery_import.zip __init__.py action.py config.py client.py dialog.py \
+              plugin-import-name-bindery_import.txt images
+
+      - name: Install plugin into calibre
+        run: calibre-customize -a bindery_import.zip
+
+      - name: Run calibre integration tests
+        run: calibre-debug tests/test_calibre_integration.py
